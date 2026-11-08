@@ -33,3 +33,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-Dependencies.ps1 -
 ```
 
 Windows Package Manager presents any required agreements/install prompts. Reopen your terminal after installation. The external Script Hook SDK must also be obtained separately. These commands do not generate the local game assets.
+
+## License
+
+The mod's original code is open source under the [MIT License](LICENSE).
+**Game files are not covered by that license and are not included.** Game
+content and third-party dependencies retain their respective owners' rights
+and licenses. See [CONTENT-NOTICE.md](CONTENT-NOTICE.md).
