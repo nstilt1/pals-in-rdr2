@@ -1,0 +1,28 @@
+{
+  "files": [
+    ".githooks/pre-commit",
+    ".github/workflows/source-audit.yml",
+    ".gitignore",
+    "BUILD.md",
+    "CMakeLists.txt",
+    "Install-Dependencies.ps1",
+    "Install.bat",
+    "Install.ps1",
+    "README.md",
+    "Setup.bat",
+    "TASKS&GOALS/progress.md",
+    "TASKS&GOALS/unfinished_task_gameplay.md",
+    "experiments/build_lamball_native.py",
+    "experiments/build_local_textures.py",
+    "experiments/local_workspace.py",
+    "experiments/prepare_lamball.py",
+    "experiments/repair_native_component_buffers.py",
+    "experiments/validate_lamball_native.py",
+    "repository-files.json",
+    "src/freeze_probe.cpp",
+    "src/plugin.cpp",
+    "src/targeting.h",
+    "tests/targeting_tests.cpp",
+    "tools/check_repository.py"
+  ]
+}
