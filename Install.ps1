@@ -1,4 +1,4 @@
-param([string]$GameDir,[string]$Plugin,[string]$Model,[string]$Textures,[switch]$ValidateOnly)
+param([string]$GameDir,[string]$Plugin,[string]$Model,[string]$Textures,[ValidateSet('Sheep','Goat')][string]$Species='Sheep',[switch]$ValidateOnly)
 $ErrorActionPreference='Stop'
 try {
  function InputPath($value,$prompt) {
@@ -7,8 +7,13 @@ try {
  }
  $GameDir=InputPath $GameDir 'RDR2 installation folder'
  $Plugin=InputPath $Plugin 'Compiled RDR2PalPrototype.asi file'
- $Model=InputPath $Model 'Locally prepared a_c_goat_01_merge_4.ydd file'
- $Textures=InputPath $Textures 'Locally prepared a_c_goat_01_merge.ytd file'
+ $modelName=if($Species -eq 'Sheep'){'a_c_sheep_01_merge_6.ydd'}else{'a_c_goat_01_merge_4.ydd'}
+ $textureName=if($Species -eq 'Sheep'){'a_c_sheep_01_merge.ytd'}else{'a_c_goat_01_merge.ytd'}
+ $replacement=if($Species -eq 'Sheep'){'a_c_sheep_01'}else{'a_c_goat_01'}
+ $assetVersion=if($Species -eq 'Sheep'){'0.1.3'}else{'0.1.2'}
+ $Model=InputPath $Model "Locally prepared $modelName file"
+ $Textures=InputPath $Textures "Locally prepared $textureName file"
+ if([IO.Path]::GetFileName($Model) -ne $modelName -or [IO.Path]::GetFileName($Textures) -ne $textureName){throw "Select matching $Species resources; renaming files does not convert an animal rig."}
  foreach($name in @('RDR2.exe','ScriptHookRDR2.dll','vfs.asi')){
   if(!(Test-Path -LiteralPath (Join-Path $GameDir $name) -PathType Leaf)){throw "Missing prerequisite: $name"}
  }
@@ -27,7 +32,7 @@ try {
  $principal=[Security.Principal.WindowsPrincipal]::new($identity)
  if(!$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){
   # Elevate only this installation process; no permanent policy changes.
-  $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$PSCommandPath+'"'),'-GameDir',('"'+$GameDir+'"'),'-Plugin',('"'+$Plugin+'"'),'-Model',('"'+$Model+'"'),'-Textures',('"'+$Textures+'"'))
+  $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$PSCommandPath+'"'),'-GameDir',('"'+$GameDir+'"'),'-Plugin',('"'+$Plugin+'"'),'-Model',('"'+$Model+'"'),'-Textures',('"'+$Textures+'"'),'-Species',$Species)
   $child=Start-Process powershell.exe -ArgumentList $arguments -Verb RunAs -Wait -PassThru -WindowStyle Hidden
   exit $child.ExitCode
  }
@@ -37,8 +42,8 @@ try {
  New-Item -ItemType Directory -Path $mod -Force | Out-Null
  $items=@(
   @{Source=$Plugin;Relative='RDR2PalPrototype.asi'},
-  @{Source=$Model;Relative='lml\local_creature_prototype\a_c_goat_01_merge_4.ydd'},
-  @{Source=$Textures;Relative='lml\local_creature_prototype\a_c_goat_01_merge.ytd'}
+  @{Source=$Model;Relative="lml\local_creature_prototype\$modelName"},
+  @{Source=$Textures;Relative="lml\local_creature_prototype\$textureName"}
  )
  $records=@()
  foreach($item in $items){
@@ -50,8 +55,8 @@ try {
   $records+=@{Path=$dest;SHA256=$hash}
  }
  $configuration=@{
-  'lml\local_creature_prototype\install.xml'='<EasyInstall><Name>Local Creature Prototype</Name><Author>Local project</Author><Version>0.1.2</Version><Resources><Resource><StreamingFile>a_c_goat_01_merge_4.ydd</StreamingFile><StreamingFile>a_c_goat_01_merge.ytd</StreamingFile></Resource></Resources></EasyInstall>'
-  'RDR2PalPrototype.ini'="[Prototype]`r`nDebugHotkeyEnabled=1`r`nDryRun=0`r`nRadiusMeters=25`r`nReplacementModel=a_c_goat_01`r`nSourceModel=`r`nAssetBuild=local-user-selected`r`n"
+  'lml\local_creature_prototype\install.xml'="<EasyInstall><Name>Local Creature Prototype</Name><Author>Local project</Author><Version>$assetVersion</Version><Resources><Resource><StreamingFile>$modelName</StreamingFile><StreamingFile>$textureName</StreamingFile></Resource></Resources></EasyInstall>"
+  'RDR2PalPrototype.ini'="[Prototype]`r`nDebugHotkeyEnabled=1`r`nDryRun=0`r`nRadiusMeters=25`r`nReplacementModel=$replacement`r`nSourceModel=`r`nAssetBuild=local-user-selected-$Species`r`n"
  }
  foreach($relative in $configuration.Keys){
   $dest=Join-Path $GameDir $relative
@@ -66,6 +71,19 @@ try {
  foreach($pair in @(@('Name','Local Creature Prototype'),@('Enabled','true'),@('Overwrite','false'))){$node=$entry.SelectSingleNode($pair[0]);if(!$node){$node=$mods.CreateElement($pair[0]);[void]$entry.AppendChild($node)};$node.InnerText=$pair[1]}
  if(!$mods.SelectSingleNode('/ModsManager/LoadOrder/Mod[text()="local_creature_prototype"]')){$node=$mods.CreateElement('Mod');$node.InnerText='local_creature_prototype';[void]$mods.SelectSingleNode('/ModsManager/LoadOrder').AppendChild($node)}
  $mods.Save($modsPath)
+ # Back up and retire the other species' known resources, so loaders cannot
+ # register the obsolete replacement alongside the selected one.
+ $retired=if($Species -eq 'Sheep'){@('a_c_goat_01_merge_4.ydd','a_c_goat_01_merge.ytd')}else{@('a_c_sheep_01_merge_6.ydd','a_c_sheep_01_merge.ytd')}
+ foreach($name in $retired){
+  $path=Join-Path $mod $name
+  if(Test-Path -LiteralPath $path){
+   $saved=Join-Path $backup "lml\local_creature_prototype\$name"
+   New-Item -ItemType Directory -Path (Split-Path $saved) -Force | Out-Null
+   Copy-Item -LiteralPath $path -Destination $saved
+   if((Get-FileHash -LiteralPath $path).Hash -ne (Get-FileHash -LiteralPath $saved).Hash){throw 'Retired resource backup failed.'}
+   Remove-Item -LiteralPath $path
+  }
+ }
  $records | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $backup 'installed-files.json')
  Write-Output "Installed. Backups: $backup"
 } catch {Write-Error $_;exit 1}

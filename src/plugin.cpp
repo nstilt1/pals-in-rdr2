@@ -8,9 +8,16 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <memory>
+#include <random>
+#include <unordered_map>
 #include "main.h"
 #include "natives.h"
 #include "targeting.h"
+#include "capture.h"
+#include "companion_combat.h"
+#include "world_resources.h"
+#include "mission_capture.h"
 
 namespace {
 HMODULE module;
@@ -79,11 +86,11 @@ bool playable() {
     return ENTITY::DOES_ENTITY_EXIST(player) && !ENTITY::IS_ENTITY_DEAD(player);
 }
 
-bool eligible(Ped ped, Hash source) {
+bool eligible(Ped ped, Hash source, bool allowMission = false) {
     if (!ENTITY::DOES_ENTITY_EXIST(ped) || ped == PLAYER::PLAYER_PED_ID()
         || PED::IS_PED_A_PLAYER(ped) || PED::IS_PED_HUMAN(ped)
         || PED::IS_PED_DEAD_OR_DYING(ped, true)
-        || ENTITY::IS_ENTITY_A_MISSION_ENTITY(ped)
+        || (!allowMission && ENTITY::IS_ENTITY_A_MISSION_ENTITY(ped))
         || PED::_IS_THIS_MODEL_A_HORSE(ENTITY::GET_ENTITY_MODEL(ped))
         || PED::_GET_RIDER_OF_MOUNT(ped, true) != 0
         || PED::IS_PED_IN_ANY_VEHICLE(ped, true)) return false;
@@ -187,8 +194,19 @@ void transformNearestAnimal() {
     trace("END SET_MODEL_AS_NO_LONGER_NEEDED; END swap function");
 }
 
+void disengageEnemyTargets();
+#include "capture_runtime.h"
+#include "companion_combat_runtime.h"
+#include "world_resources_runtime.h"
+#include "pals_page_runtime.h"
+
 void keyboard(DWORD key, WORD, BYTE, BOOL, BOOL withAlt, BOOL wasDown, BOOL isUp) {
     if (key == VK_F8 && !isUp && !wasDown && !withAlt) requested.store(true);
+    if (!isUp && !wasDown && !withAlt) {
+        if (key == VK_F9) captureRequested.store(true);
+        if (key == VK_F10) companionRequested.store(true);
+        if (key == VK_F11) rosterRequested.store(true);
+    }
 }
 
 void scriptMain() {
@@ -214,13 +232,25 @@ void scriptMain() {
         + "; module presence does not confirm resource replacement.");
     report(logPath.empty() ? "Prototype loaded; log file unavailable. F8 developer test."
         : "Prototype loaded; logging enabled in LocalAppData. F8 developer test.");
+    initializeCapture();
+    initializeCompanionCombat();
+    initializeWorldResources();
+    initializePalsPage();
     ULONGLONG nextHeartbeat = GetTickCount64() + 5000;
     while (true) {
         if (GetTickCount64() >= nextHeartbeat) {
             trace("HEARTBEAT script fiber running");
             nextHeartbeat = GetTickCount64() + 5000;
         }
+        if (captureEnabled && playable()) updateCompanionDeath();
         if (requested.exchange(false) && debugHotkey) transformNearestAnimal();
+        if (captureRequested.exchange(false)) captureAimedLamball();
+        if (companionRequested.exchange(false)) toggleCompanion();
+        if (rosterRequested.exchange(false) && captureEnabled) captureStatus();
+        updateCompanionCombat();
+        maintainOwnedCompanionFollow();
+        updateWorldResources();
+        updatePalsPage();
         if (!status.empty() && GetTickCount64() < statusUntil && playable()) {
             const char* text = MISC::VAR_STRING(10, "LITERAL_STRING", status.c_str());
             // Current background text natives; older HUD text calls became no-ops.

@@ -2,6 +2,13 @@
 
 **Work in progress.** Press **F8** to turn the nearest compatible animal into a **Lamball**.
 
+Local test candidate **0.6.0** adds a five-member party, native Pals wheel-pane
+candidate and guarded capture of one sheep in The Sheep and the Goats. Existing
+profiles migrate without replenishing inventory. Native page controls and mission
+completion still need in-game validation. F9 remains the developer capture trigger;
+sphere throwing/animations are unfinished. See [BUILD.md](BUILD.md) for current
+controls, save compatibility, local-content preparation and known limits.
+
 ## Requirements
 
 - Windows 10/11, 64-bit, and RDR2 for PC in **Story Mode**.
